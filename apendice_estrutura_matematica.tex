@@ -1,0 +1,84 @@
+\chapter{Arquitetura e Fundamentação Matemática do Sistema}
+
+Este apêndice detalha a arquitetura computacional do sistema de análise de movimento por vídeo e justifica suas bases matemáticas. O código-fonte central está em Python, utilizando Streamlit, OpenCV, Pandas, NumPy, SciPy e Matplotlib.
+
+\section{Arquitetura do Software}
+O sistema consiste nos seguintes módulos lógicos:
+\begin{itemize}
+    \item \textbf{Interface Web}: Upload do vídeo, seleção de intervalos e pontos de calibração.
+    \item \textbf{Calibração Espacial}: Conversão de pixels para unidades de medida reais usando pontos de referência.
+    \item \textbf{Correção de Perspectiva (Homografia)}: (Opcional) Ajuste da imagem para eliminar distorções.
+    \item \textbf{Rastreamento de Objeto}: Detecção automática da posição do objeto em cada quadro usando CSRT Tracker.
+    \item \textbf{Coleta e Suavização de Dados}: Exportação dos centros em cada frame, com aplicação de filtros matemáticos.
+    \item \textbf{Visualização e Análise Final}: Geração automatizada de gráficos, imagens estroboscópicas e ajuste por regressão.
+\end{itemize}
+
+\section{Aquisição de Dados: Amostragem Digital}
+A análise é baseada em quadros discretos (frames). A frequência de amostragem é o FPS do vídeo ($f_s$), com $\Delta t = 1/f_s$.
+\subsection{Teorema de Nyquist-Shannon}
+\begin{tcolorbox}[title=Teorema de Nyquist-Shannon]
+Uma função de tempo contínua $x(t)$ pode ser reconstruída perfeitamente a partir de suas amostras $x[k]$, se a frequência de amostragem $f_s$ for pelo menos o dobro da maior frequência presente na função ($f_{max}$):
+\begin{equation}
+    f_s > 2 \cdot f_{max}
+\end{equation}
+\end{tcolorbox}
+Ou seja, para fenômenos rápidos, é necessário vídeo com FPS elevado para garantir precisão cinemática.
+
+\section{Calibração Espacial e Homografia}
+A imagem é convertida de pixels ($p$) para unidades físicas ($u.m.$):
+\begin{align}
+    \textrm{pos}_x^{u.m.} &= (p_x - p_{x,origem}) \cdot S \\
+    \textrm{pos}_y^{u.m.} &= -(p_y - p_{y,origem}) \cdot S
+\end{align}
+Onde $S = \frac{D_{real}}{D_{pixels}}$ é o fator de escala entre dois pontos de referência.\par
+A homografia (quando usada) realiza uma transformação de perspectiva a partir de 4 pontos arbitrários em $[1m2D\rightarrow2D$\normalfont: 
+\begin{align}
+    \mathbf{x}' = H \mathbf{x}
+\end{align}
+Onde $H$ é a matriz de transformação projetiva da imagem.
+
+\section{Rastreamento de Objeto (CSRT Tracker)}
+O CSRT ([1mDiscriminative Correlation Filter with Channel and Spatial Reliability[0m) atua sobre cada frame, ajustando a bounding box e extraindo a posição centroide do objeto. Detalhes do algoritmo estão na documentação do OpenCV.
+
+\section{Suavização e Derivação Numérica}
+Para obtenção de velocidade e aceleração, derivadas numéricas são sensíveis a ruído devido à quantização dos pixels e limites do vídeo. Aqui empregamos o filtro de Savitzky-Golay.
+\subsection{Filtro Savitzky-Golay}
+\begin{tcolorbox}[title=Filtro de Savitzky-Golay]
+Consiste em ajustar polinômios locais de grau $d$ em janelas de tamanho $w$, permitindo calcular derivadas suavizadas:
+\begin{equation}
+    \tilde{y}^{(n)}[i] = \sum_{j=-m}^{m} c_j^{(n)} y[i+j]
+\end{equation}
+Com coeficientes $c_j^{(n)}$ obtidos ajustando mínimos quadrados para o polinômio local.
+\end{tcolorbox}
+A escolha da janela $w$ e grau $d$ controla o balanço entre suavização e preservação de picos reais.
+
+\section{Ajuste de Curvas: Mínimos Quadrados e Regressão Linear}
+Dados experimentais são ajustados ao modelo físico apropriado (reta ou parábola) minimizando o erro quadrático médio.
+\subsection{Regressão Linear (Movimento Uniforme)}
+\begin{tcolorbox}[title=Regressão Linear]
+O modelo $S(t)=vt + S_0$ é ajustado por mínimos quadrados:
+\begin{equation}
+    \underset{v,S_0}{min} \; \sum_{i=1}^N [S_i-(v t_i + S_0)]^2
+\end{equation}
+A solução analítica fornece $v$ (velocidade média) e $S_0$ (posição inicial).
+\end{tcolorbox}
+\subsection{Ajuste Quadrático (Movimento Uniformemente Variado)}
+\begin{tcolorbox}[title=Regressão Quadrática]
+O modelo $S(t)=\frac{a}{2}t^2+v_0t+S_0$ é ajustado por mínimos quadrados, semelhante ao caso linear.
+A solução produz estimativas de aceleração constante $a$, velocidade inicial $v_0$ e posição inicial $S_0$.
+\end{tcolorbox}
+
+\section{Visualização Estroboscópica}
+A imagem final é composta pela sobreposição dos estados capturados do objeto nas posições extraídas, ilustrando o movimento quadro a quadro.
+
+\section{Resumo}
+O sistema implementa pipeline robusto, fundamentado em teoria de amostragem, ajuste geométrico (homografia), rastreamento inteligente e técnicas clássicas de suavização estatística e ajuste físico-matemático.
+
+\bigskip
+\noindent
+\textbf{Referências:}
+\begin{itemize}
+    \item OpenCV Documentation: \url{https://docs.opencv.org/}
+    \item Savitzky, A. and Golay, M.J.E. (1964). Smoothing and Differentiation of Data by Simplified Least Squares Procedures. Analytical Chemistry, 36(8), 1627-1639.
+    \item P.J. Nahin, "The Science of Radio: With MATLAB and Electronics Workbench Demonstrations", Springer.
+\end{itemize}
